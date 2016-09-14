@@ -23,6 +23,7 @@ from functools import reduce
 import datetime
 
 from report_utils.model_introspection import (
+    _get_field_by_name,
     get_relation_fields_from_model,
     get_properties_from_model,
     get_direct_fields_from_model,
@@ -35,6 +36,7 @@ DisplayField = namedtuple(
     "path path_verbose field field_verbose aggregate total group choices field_type",
 )
 
+
 def generate_filename(title, ends_with):
     title = title.split('.')[0]
     title.replace(' ', '_')
@@ -42,6 +44,7 @@ def generate_filename(title, ends_with):
     if not title.endswith(ends_with):
         title += ends_with
     return title
+
 
 class DataExportMixin(object):
     def build_sheet(self, data, ws, sheet_name='report', header=None, widths=None):
@@ -223,7 +226,7 @@ class DataExportMixin(object):
                     path += '__' # Legacy format to append a __ here.
 
                 new_model = get_model_from_path_string(model_class, path)
-                model_field = new_model._meta.get_field_by_name(field)[0]
+                model_field = new_model._meta.get_field(field)
                 choices = model_field.choices
                 new_display_fields.append(DisplayField(
                     path, '', field, '', '', None, None, choices, ''
@@ -541,7 +544,7 @@ class GetFieldsMixin(object):
         app_label = model_class._meta.app_label
 
         if field_name != '':
-            field = model_class._meta.get_field_by_name(field_name)
+            field = _get_field_by_name(model_class, field_name)
             if path_verbose:
                 path_verbose += "::"
             # TODO: need actual model name to generate choice list (not pluralized field name)
@@ -584,7 +587,7 @@ class GetFieldsMixin(object):
     def get_related_fields(self, model_class, field_name, path="", path_verbose=""):
         """ Get fields for a given model """
         if field_name:
-            field = model_class._meta.get_field_by_name(field_name)
+            field = _get_field_by_name(model_class, field_name)
             if field[2]:
                 # Direct field
                 try:

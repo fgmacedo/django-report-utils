@@ -1,11 +1,14 @@
 """ Functioned to introspect a model """
+from itertools import chain
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.fields import FieldDoesNotExist
 from django.conf import settings
 import inspect
 
+
 def isprop(v):
     return isinstance(v, property)
+
 
 def get_properties_from_model(model_class):
     """ Show properties from a model """
@@ -19,12 +22,39 @@ def get_properties_from_model(model_class):
     return sorted(properties, key=lambda k: k['label'])
 
 
+def _get_all_field_names(model):
+    """
+    100% compatible version of the old API of model._meta.get_all_field_names()
+    From: https://docs.djangoproject.com/en/1.9/ref/models/meta/#migrating-from-the-old-api
+    """
+    return list(set(chain.from_iterable(
+        (field.name, field.attname) if hasattr(field, 'attname') else (field.name,)
+        for field in model._meta.get_fields()
+        # For complete backwards compatibility, you may want to exclude
+        # GenericForeignKey from the results.
+        if not (field.many_to_one and field.related_model is None)
+    )))
+
+
+def _get_field_by_name(model_class, field_name):
+    """
+    Compatible with old API of model_class._meta.get_field_by_name(field_name)
+    """
+    field = model_class._meta.get_field(field_name)
+    return (
+        field,
+        field.model,
+        not field.auto_created or field.concrete,
+        field.many_to_many
+    )
+
+
 def get_relation_fields_from_model(model_class):
     """ Get related fields (m2m, FK, and reverse FK) """
     relation_fields = []
-    all_fields_names = model_class._meta.get_all_field_names()
+    all_fields_names = _get_all_field_names(model_class)
     for field_name in all_fields_names:
-        field = model_class._meta.get_field_by_name(field_name)
+        field = _get_field_by_name(model_class, field_name)
         # get_all_field_names will return the same field
         # both with and without _id. Ignore the duplicate.
         if field_name[-3:] == '_id' and field_name[:-3] in all_fields_names:
@@ -38,9 +68,9 @@ def get_relation_fields_from_model(model_class):
 def get_direct_fields_from_model(model_class):
     """ Direct, not m2m, not FK """
     direct_fields = []
-    all_fields_names = model_class._meta.get_all_field_names()
+    all_fields_names = _get_all_field_names(model_class)
     for field_name in all_fields_names:
-        field = model_class._meta.get_field_by_name(field_name)
+        field = _get_field_by_name(model_class, field_name)
         if field[2] and not field[3] and not hasattr(field[0], 'related'):
             direct_fields += [field[0]]
     return direct_fields
@@ -68,7 +98,7 @@ def get_model_from_path_string(root_model, path):
     for path_section in path.split('__'):
         if path_section:
             try:
-                field = root_model._meta.get_field_by_name(path_section)
+                field = _get_field_by_name(root_model, path_section)
             except FieldDoesNotExist:
                 return root_model
             if field[2]:
