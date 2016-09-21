@@ -24,6 +24,7 @@ import datetime
 
 from report_utils.model_introspection import (
     _get_field_by_name,
+    _get_remote_field,
     get_relation_fields_from_model,
     get_properties_from_model,
     get_direct_fields_from_model,
@@ -558,9 +559,9 @@ class GetFieldsMixin(object):
             path += '__'
             if field[2]:  # Direct field
                 try:
-                    new_model = field[0].related.parent_model
+                    new_model = _get_remote_field(field[0]).parent_model
                 except AttributeError:
-                    new_model = field[0].related.model
+                    new_model = _get_remote_field(field[0]).model
                 path_verbose = new_model.__name__.lower()
             else:  # Indirect related field
                 try:
@@ -591,9 +592,9 @@ class GetFieldsMixin(object):
             if field[2]:
                 # Direct field
                 try:
-                    new_model = field[0].related.parent_model()
+                    new_model = _get_remote_field(field[0]).parent_model()
                 except AttributeError:
-                    new_model = field[0].related.model
+                    new_model = _get_remote_field(field[0]).model
             else:
                 # Indirect related field
                 if hasattr(field[0], 'related_model'):  # Django>=1.8

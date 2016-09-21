@@ -49,6 +49,18 @@ def _get_field_by_name(model_class, field_name):
     )
 
 
+def _get_remote_field(field):
+    """
+    Compatible with Django 1.8~1.10 ('related' was renamed to 'remote_field')
+    """
+    if hasattr(field, 'remote_field'):
+        return field.remote_field
+    elif hasattr(field, 'related'):
+        return field.related
+    else:
+        return None
+
+
 def get_relation_fields_from_model(model_class):
     """ Get related fields (m2m, FK, and reverse FK) """
     relation_fields = []
@@ -59,7 +71,7 @@ def get_relation_fields_from_model(model_class):
         # both with and without _id. Ignore the duplicate.
         if field_name[-3:] == '_id' and field_name[:-3] in all_fields_names:
             continue
-        if field[3] or not field[2] or hasattr(field[0], 'related'):
+        if field[3] or not field[2] or _get_remote_field(field[0]):
             field[0].field_name = field_name
             relation_fields += [field[0]]
     return relation_fields
@@ -71,7 +83,7 @@ def get_direct_fields_from_model(model_class):
     all_fields_names = _get_all_field_names(model_class)
     for field_name in all_fields_names:
         field = _get_field_by_name(model_class, field_name)
-        if field[2] and not field[3] and not hasattr(field[0], 'related'):
+        if field[2] and not field[3] and not _get_remote_field(field[0]):
             direct_fields += [field[0]]
     return direct_fields
 
@@ -102,11 +114,11 @@ def get_model_from_path_string(root_model, path):
             except FieldDoesNotExist:
                 return root_model
             if field[2]:
-                if hasattr(field[0], 'related'):
+                if _get_remote_field(field[0]):
                     try:
-                        root_model = field[0].related.parent_model()
+                        root_model = _get_remote_field(field[0]).parent_model()
                     except AttributeError:
-                        root_model = field[0].related.model
+                        root_model = _get_remote_field(field[0]).model
             else:
                 if hasattr(field[0], 'related_model'):
                     root_model = field[0].related_model
